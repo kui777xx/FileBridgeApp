@@ -1,0 +1,16 @@
+{
+  "name": "filebridgeapp",
+  "version": "1.0.0",
+  "description": "P2P File Transfer App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.18.2",
+    "nedb": "^1.8.0",
+    "socket.io": "^4.7.2",
+    "simple-peer": "^9.11.1"
+  }
+}
