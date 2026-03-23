@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>FileBridge - P2P Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+    <style>
+        .notif-box { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; margin-bottom: 10px; max-height: 80px; overflow-y: auto; }
+        .notif-item { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; align-items: center; }
+        .btn-mini { padding: 4px 8px; width: auto; font-size: 10px; background: #00e676; }
+        .badge { background: #ff4b2b; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
+        
+        /* STYLE PREMIUM */
+        .premium-gold { border-color: #ffd700 !important; color: #ffd700 !important; box-shadow: 0 0 25px #ffd700 !important; text-shadow: 0 0 10px #ffd700; }
+        .avatar.premium-gold { background: radial-gradient(circle, #3a3000 0%, #1a1500 100%); }
+    </style>
+</head>
+<body>
+    <div id="drop-zone">Upuść plik tutaj...</div>
+
+    <div id="auth-screen" class="glass-panel">
+        <div class="logo">FileBridge</div>
+        <input type="text" id="username" placeholder="Login">
+        <input type="password" id="password" placeholder="Hasło">
+        <button onclick="auth('login')">Zaloguj się</button>
+        <button onclick="auth('register')" class="secondary">Zarejestruj się</button>
+        <p id="error" style="color:red; font-size:12px"></p>
+    </div>
+
+    <div id="main-app" class="app-container" style="display: none;">
+        <div class="glass-panel topbar">
+            <div class="logo">FileBridge</div>
+            <div id="my-name-display" style="font-weight:bold">Witaj</div>
+        </div>
+
+        <div class="main-hub" id="hub">
+            <div class="orbit-circle"></div>
+            <div id="my-avatar-node" class="user-node center"><div class="avatar" style="border-color:white">TY</div></div>
+        </div>
+
+        <div class="bottom-panels">
+            <div class="glass-panel">
+                <h3>Kody Premium <span id="badge" class="badge" style="display:none">0</span></h3>
+                <div id="notif-list" class="notif-box">Brak zaproszeń</div>
+                <div style="display:flex; gap:5px">
+                    <input type="text" id="friend-name" placeholder="Dodaj znajomego...">
+                    <button onclick="addFriend()" style="width:auto; padding:0 15px">+</button>
+                </div>
+                <div style="display:flex; gap:5px; margin-top:5px">
+                    <input type="text" id="premium-code" placeholder="Wpisz kod Premium...">
+                    <button onclick="redeemCode()" class="secondary" style="width:auto; padding:0 10px; border-color:#ffd700; color:#ffd700">OK</button>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3>Transfer Status</h3>
+                <p id="file-info" style="font-size:12px; color:#aaa; margin-bottom:5px">Czekam na plik...</p>
+                <div class="progress-bar-container"><div id="progress-fill" class="progress-bar-fill"></div></div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:5px">
+                    <span id="transfer-stats">0/0 MB</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3>System</h3>
+                <div id="p2p-status" style="color:#ff4b2b">● Oczekiwanie na sieć</div>
+                <button class="secondary" style="margin-top:10px; padding:5px" onclick="location.reload()">Wyloguj</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let selectedFile, p, myUsername, myPremiumStatus;
+
+        function auth(type) {
+            socket.emit('auth', { type, username: document.getElementById('username').value, password: document.getElementById('password').value });
+        }
+
+        socket.on('auth-success', u => {
+            myUsername = u.username;
+            myPremiumStatus = u.premium;
+            document.getElementById('auth-screen').style.display='none';
+            document.getElementById('main-app').style.display='grid';
+            document.getElementById('my-name-display').innerText = `Konto: ${u.username}`;
+            updateMyAvatarStyle();
+        });
+
+        socket.on('auth-error', m => document.getElementById('error').innerText = m);
+
+        function addFriend() { socket.emit('add-friend', document.getElementById('friend-name').value); document.getElementById('friend-name').value = ''; }
+        
+        // --- KODY PREMIUM (KLIENT) ---
+        function redeemCode() {
+            const code = document.getElementById('premium-code').value;
+            if(code) {
+                socket.emit('redeem-code', code);
+                document.getElementById('premium-code').value = '';
+            }
+        }
+        socket.on('premium-update', (newStatus) => {
+            myPremiumStatus = newStatus;
+            updateMyAvatarStyle();
+            alert("🏆 Styl zaktualizowany!");
+        });
+
+        function updateMyAvatarStyle() {
+            const avatar = document.getElementById('my-avatar-node').querySelector('.avatar');
+            avatar.className = 'avatar'; // Reset
+            if(myPremiumStatus === 'gold') avatar.classList.add('premium-gold');
+        }
+
+        socket.on('friend-list', list => {
+            const hub = document.getElementById('hub');
+            const notifList = document.getElementById('notif-list');
+            const badge = document.getElementById('badge');
+            document.querySelectorAll('.remote-user').forEach(e => e.remove());
+            notifList.innerHTML = "";
+            let pCount = 0;
+
+            list.forEach((f, i) => {
+                if(f.status === 'pending' && f.sender !== myUsername) {
+                    pCount++;
+                    notifList.innerHTML += `<div class="notif-item"><span>${f.username}</span><button class="btn-mini" onclick="socket.emit('accept-friend','${f.username}')">OK</button></div>`;
+                } else if(f.status === 'accepted' && f.isOnline) {
+                    const node = document.createElement('div');
+                    node.className = 'user-node remote-user';
+                    const angle = i * 60;
+                    node.style.transform = `rotate(${angle}deg) translate(200px) rotate(-${angle}deg)`;
+                    
+                    // Nakładamy styl premium znajomego
+                    const premiumClass = f.premium === 'gold' ? 'premium-gold' : '';
+                    node.innerHTML = `<div class="avatar ${premiumClass}" onclick="sendTo('${f.username}')">${f.username[0].toUpperCase()}</div><div style="font-size:11px">${f.username}</div>`;
+                    hub.appendChild(node);
+                }
+            });
+            badge.innerText = pCount; badge.style.display = pCount > 0 ? 'inline' : 'none';
+            if(pCount === 0) notifList.innerHTML = "Brak zaproszeń";
+        });
+
+        // --- P2P LOGIKA (Bez zmian) ---
+        window.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-zone').style.display='flex'; });
+        window.addEventListener('drop', e => {
+            e.preventDefault(); document.getElementById('drop-zone').style.display='none';
+            selectedFile = e.dataTransfer.files[0];
+            document.getElementById('file-info').innerText = `Gotowy: ${selectedFile.name}`;
+            document.getElementById('p2p-status').innerText = '● Gotowy do wysłania';
+            document.getElementById('p2p-status').style.color = '#00e676';
+        });
+
+        function sendTo(target) {
+            if(!selectedFile) return alert("Upuść plik!");
+            document.getElementById('p2p-status').innerText = '● Łączenie P2P...';
+            p = new SimplePeer({ initiator: true, trickle: false });
+            p.on('signal', data => socket.emit('signal', { signal: data, to: target }));
+            p.on('connect', () => {
+                document.getElementById('p2p-status').innerText = '● Przesyłanie...';
+                p.send(JSON.stringify({ name: selectedFile.name, size: selectedFile.size }));
+                const reader = new FileReader();
+                let offset = 0;
+                reader.onload = e => {
+                    p.send(e.target.result);
+                    offset += e.target.result.byteLength;
+                    updateUI(offset, selectedFile.size);
+                    if (offset < selectedFile.size) reader.readAsArrayBuffer(selectedFile.slice(offset, offset + 16384));
+                };
+                reader.readAsArrayBuffer(selectedFile.slice(0, 16384));
+            });
+        }
+
+        socket.on('signal', data => {
+            if(!p) {
+                p = new SimplePeer({ initiator: false, trickle: false });
+                p.on('signal', s => socket.emit('signal', { signal: s, to: data.from }));
+                let inc = null; let chks = []; let rec = 0;
+                p.on('data', d => {
+                    try {
+                        inc = JSON.parse(d);
+                        if(!confirm(`Odebrać ${inc.name} (${(inc.size/1024/1024).toFixed(1)}MB)?`)) location.reload();
+                    } catch(e) {
+                        chks.push(d); rec += d.byteLength;
+                        updateUI(rec, inc.size);
+                        if(rec >= inc.size) {
+                            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chks));
+                            a.download = inc.name; a.click(); alert("Pobrano!"); location.reload();
+                        }
+                    }
+                });
+            }
+            p.signal(data.signal);
+        });
+
+        function updateUI(d, t) {
+            const pc = Math.round((d/t)*100);
+            document.getElementById('progress-fill').style.width = pc+'%';
+            document.getElementById('progress-percent').innerText = pc+'%';
+            document.getElementById('transfer-stats').innerText = `${(d/1024/1024).toFixed(1)} / ${(t/1024/1024).toFixed(1)} MB`;
+        }
+    </script>
+</body>
+</html>

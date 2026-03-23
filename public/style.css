@@ -1,0 +1,50 @@
+body {
+    background: radial-gradient(circle at center, #1b163a 0%, #0d0f18 100%);
+    color: white; font-family: 'Segoe UI', sans-serif; height: 100vh; margin: 0;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 25px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+#auth-screen { width: 320px; text-align: center; }
+.logo { font-size: 28px; font-weight: bold; color: #4facfe; text-shadow: 0 0 15px #4facfe; margin-bottom: 20px; }
+
+input {
+    width: 90%; padding: 12px; margin: 10px 0; border-radius: 10px;
+    border: none; background: rgba(255, 255, 255, 0.07); color: white; outline: none;
+}
+
+button {
+    background: linear-gradient(90deg, #4facfe, #00f2fe); border: none; padding: 12px 25px;
+    border-radius: 10px; color: white; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s;
+}
+button:hover { transform: scale(1.02); box-shadow: 0 0 20px rgba(79, 172, 254, 0.5); }
+.secondary { background: transparent; border: 1px solid #4facfe; margin-top: 10px; }
+
+.app-container { width: 95vw; height: 90vh; display: grid; grid-template-rows: 70px 1fr 180px; gap: 20px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0 30px; }
+
+.main-hub { position: relative; display: flex; align-items: center; justify-content: center; }
+.orbit-circle { position: absolute; border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 50%; width: 450px; height: 450px; }
+
+.user-node { position: absolute; text-align: center; transition: 0.5s; }
+.avatar {
+    width: 80px; height: 80px; background: #1e2030; border: 3px solid #4facfe;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; box-shadow: 0 0 20px #4facfe; cursor: pointer;
+}
+
+.bottom-panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+.progress-bar-container { background: rgba(255,255,255,0.1); height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, #4facfe, #00f2fe); width: 0%; transition: width 0.2s; box-shadow: 0 0 10px #4facfe; }
+
+#drop-zone {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+    display: none; background: rgba(79, 172, 254, 0.1); border: 4px dashed #4facfe;
+    justify-content: center; align-items: center; font-size: 24px; pointer-events: none;
+}
