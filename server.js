@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const Datastore = require('nedb');
+const Datastore = require('@seald-io/nedb');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
