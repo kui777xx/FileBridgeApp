@@ -2,216 +2,82 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileBridge P2P</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+    <title>FileBridge Cloud</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b0b1a; color: white; }
-        .app-container { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; }
-        .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37); }
-        .main-hub { flex-grow: 1; position: relative; display: flex; justify-content: center; align-items: center; }
-        .bottom-panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; height: 220px; min-height: 220px; }
-        .user-node { position: absolute; text-align: center; transition: transform 0.5s ease; cursor: pointer; }
-        .avatar { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #4facfe; display: flex; align-items: center; justify-content: center; background: #16213e; font-size: 24px; font-weight: bold; box-shadow: 0 0 15px rgba(79, 172, 254, 0.4); }
-        .avatar.center { background: #1a1a2e; border-color: #fff; width: 80px; height: 80px; }
-        .premium-gold { border-color: #ffd700 !important; color: #ffd700 !important; box-shadow: 0 0 20px #ffd700 !important; }
-        input { width: 100%; padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; cursor: pointer; border-radius: 5px; border: none; background: #4facfe; color: white; font-weight: bold; margin-top: 5px; transition: 0.3s; }
-        button:hover { opacity: 0.8; }
-        button.secondary { background: #3d3d5c; }
-        .progress-bar { width: 100%; height: 10px; background: #1a1a2e; border-radius: 5px; margin: 10px 0; overflow: hidden; }
-        #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%); transition: width 0.1s; }
-        .file-item { background: rgba(255,255,255,0.05); padding: 8px; margin-top: 5px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+        body { background: #0b0b1a; color: white; font-family: sans-serif; display: flex; justify-content: center; padding: 20px; }
+        .panel { background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 20px; border-radius: 15px; width: 500px; }
+        .file-card { background: #16213e; padding: 10px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        button { background: #4facfe; border: none; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #444; background: #000; color: white; }
+        .owner-tag { font-size: 10px; color: #4facfe; text-transform: uppercase; }
     </style>
 </head>
 <body>
-    <div id="auth-screen" style="display:flex; justify-content:center; align-items:center; height:100vh; background: radial-gradient(circle, #1a1a2e 0%, #0b0b1a 100%);">
-        <div class="glass-panel" style="width:320px; text-align: center;">
-            <h1 style="margin-bottom: 20px; color: #4facfe;">FileBridge</h1>
-            <input type="text" id="username" placeholder="Login">
-            <input type="password" id="password" placeholder="Hasło">
-            <button onclick="auth('login')">Zaloguj się</button>
-            <button onclick="auth('register')" class="secondary">Załóż konto</button>
-        </div>
+    <div id="auth" class="panel">
+        <h2>Zaloguj się</h2>
+        <input type="text" id="u" placeholder="Login">
+        <input type="password" id="p" placeholder="Hasło">
+        <button onclick="auth('login')">Wejdź</button>
     </div>
 
-    <div id="main-app" class="app-container" style="display: none;">
-        <div class="glass-panel" style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; padding: 10px 25px;">
-            <div id="my-name" style="font-weight: bold; font-size: 18px;">Użytkownik</div>
-            <div id="p2p-status" style="color:#00ff00; font-size: 14px;">● Połączono z serwerem</div>
+    <div id="app" class="panel" style="display:none">
+        <h2 id="welcome">Witaj</h2>
+        <div style="border: 2px dashed #4facfe; padding: 20px; text-align: center; margin-bottom: 20px;">
+            <input type="file" id="fileInput" onchange="uploadFile()">
+            <p>Wybierz plik, aby go udostępnić znajomym</p>
         </div>
 
-        <div class="main-hub" id="hub">
-            <div id="my-avatar" class="user-node"><div class="avatar center">TY</div></div>
-        </div>
-
-        <div class="bottom-panels">
-            <div class="glass-panel">
-                <h4 style="margin:0 0 10px 0; color: #4facfe;">Znajomi</h4>
-                <div id="notif-list" style="max-height: 60px; overflow-y: auto; font-size: 13px; margin-bottom: 5px;"></div>
-                <input type="text" id="friend-name" placeholder="Szukaj nicku...">
-                <button onclick="socket.emit('add-friend', document.getElementById('friend-name').value)">Dodaj do kręgu</button>
-                <input type="text" id="premium-code" placeholder="Kod premium..." style="margin-top:8px">
-                <button onclick="socket.emit('redeem-code', document.getElementById('premium-code').value)" class="secondary">Aktywuj kod</button>
-            </div>
-
-            <div class="glass-panel">
-                <h4 style="margin:0 0 10px 0; color: #4facfe;">Oczekujące pliki</h4>
-                <div id="file-requests-list" style="font-size: 13px; color: #aaa;">Brak próśb o przesłanie</div>
-            </div>
-
-            <div class="glass-panel">
-                <h4 style="margin:0 0 10px 0; color: #4facfe;">Transfer Status</h4>
-                <div id="file-info" style="font-size: 12px; margin-bottom: 5px;">Upuść plik na awatar znajomego</div>
-                <div class="progress-bar"><div id="progress-fill"></div></div>
-                <div id="transfer-stats" style="font-size: 13px; text-align: center; font-family: monospace;">0 / 0 MB (0%)</div>
-            </div>
-        </div>
+        <h3>Pliki w Twojej sieci:</h3>
+        <div id="file-list"></div>
+        
+        <hr>
+        <input type="text" id="fName" placeholder="Nick znajomego">
+        <button onclick="socket.emit('add-friend', document.getElementById('fName').value)">Dodaj znajomego</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let p = null, myUsername, selectedFile;
-
-        const peerCfg = { 
-            config: { iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun.services.mozilla.com' },
-                { urls: 'stun:stun.voipstunt.com' }
-            ]} 
-        };
+        let userData = null;
 
         function auth(type) {
-            socket.emit('auth', { type, username: document.getElementById('username').value, password: document.getElementById('password').value });
+            socket.emit('auth', { type, username: document.getElementById('u').value, password: document.getElementById('p').value });
         }
 
         socket.on('auth-success', u => {
-            myUsername = u.username;
-            document.getElementById('auth-screen').style.display='none';
-            document.getElementById('main-app').style.display='flex';
-            document.getElementById('my-name').innerText = u.username;
-            if(u.premium === 'gold') document.querySelector('#my-avatar .avatar').classList.add('premium-gold');
+            userData = u;
+            document.getElementById('auth').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('welcome').innerText = "Witaj, " + u.username;
         });
 
-        socket.on('friend-list', list => {
-            const hub = document.getElementById('hub');
-            const nList = document.getElementById('notif-list');
-            document.querySelectorAll('.remote-user').forEach(e => e.remove());
-            nList.innerHTML = "";
-            
-            list.forEach((f, i) => {
-                if(f.status === 'pending' && f.sender !== myUsername) {
-                    nList.innerHTML += `<div class="file-item"><span>${f.username}</span><button style="width:auto; padding:2px 8px" onclick="socket.emit('accept-friend','${f.username}')">OK</button></div>`;
-                } else if(f.status === 'accepted' && f.isOnline) {
-                    const node = document.createElement('div');
-                    node.className = 'user-node remote-user';
-                    const angle = i * (360 / Math.max(list.length, 1));
-                    node.style.transform = `rotate(${angle}deg) translate(160px) rotate(-${angle}deg)`;
-                    node.innerHTML = `
-                        <div class="avatar ${f.premium === 'gold' ? 'premium-gold' : ''}" onclick="sendFileTo('${f.username}')">${f.username[0].toUpperCase()}</div>
-                        <div style="font-size:12px; margin-top:5px;">${f.username}</div>`;
-                    hub.appendChild(node);
-                }
+        async function uploadFile() {
+            const file = document.getElementById('fileInput').files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('owner', userData.username);
+            formData.append('ownerId', userData.id);
+
+            document.getElementById('welcome').innerText = "Wysyłanie...";
+            await fetch('/upload', { method: 'POST', body: formData });
+            document.getElementById('welcome').innerText = "Witaj, " + userData.username;
+        }
+
+        socket.on('update-data', data => {
+            const list = document.getElementById('file-list');
+            list.innerHTML = "";
+            data.files.forEach(f => {
+                list.innerHTML += `
+                    <div class="file-card">
+                        <div>
+                            <div class="owner-tag">${f.owner} udostępnił:</div>
+                            <strong>${f.name}</strong><br>
+                            <small>${(f.size/1024/1024).toFixed(2)} MB</small>
+                        </div>
+                        <button onclick="window.location='/download/${f._id}'">Pobierz</button>
+                    </div>`;
             });
         });
-
-        window.ondragover = e => e.preventDefault();
-        window.ondrop = e => { 
-            e.preventDefault(); 
-            selectedFile = e.dataTransfer.files[0]; 
-            document.getElementById('file-info').innerText = "Gotowy: " + selectedFile.name; 
-        };
-
-        function sendFileTo(target) {
-            if(!selectedFile) return alert("Upuść plik na stronę!");
-            socket.emit('file-offer', { to: target, fileName: selectedFile.name, fileSize: selectedFile.size });
-            document.getElementById('file-info').innerText = "Czekam na akceptację...";
-        }
-
-        socket.on('file-request', data => {
-            const list = document.getElementById('file-requests-list');
-            if(list.innerText.includes("Brak")) list.innerHTML = "";
-            const div = document.createElement('div');
-            div.className = 'file-item';
-            div.innerHTML = `<span>${data.from}: ${data.fileName}</span><button style="width:auto" onclick="acceptF('${data.from}')">AKCEPTUJ</button>`;
-            list.appendChild(div);
-        });
-
-        function acceptF(from) {
-            socket.emit('file-accepted', { to: from });
-            event.target.closest('.file-item').remove();
-        }
-
-        socket.on('start-webrtc', data => {
-            console.log("Inicjuję połączenie...");
-            if(p) p.destroy();
-            p = new SimplePeer({ initiator: true, trickle: false, ...peerCfg });
-            setupPeer(p, data.from);
-        });
-
-        socket.on('signal', data => {
-            if(!p) {
-                p = new SimplePeer({ initiator: false, trickle: false, ...peerCfg });
-                setupPeer(p, data.from);
-            }
-            p.signal(data.signal);
-        });
-
-        function setupPeer(peer, target) {
-            peer.on('signal', s => socket.emit('signal', { signal: s, to: target }));
-            
-            peer.on('connect', () => {
-                console.log("POŁĄCZONO P2P!");
-                document.getElementById('p2p-status').innerText = "● Połączono P2P";
-                if(selectedFile) {
-                    peer.send(JSON.stringify({ n: selectedFile.name, s: selectedFile.size }));
-                    let offset = 0;
-                    const chunkSize = 16384;
-                    const sendNext = () => {
-                        const reader = new FileReader();
-                        const slice = selectedFile.slice(offset, offset + chunkSize);
-                        reader.onload = e => {
-                            peer.send(e.target.result);
-                            offset += e.target.result.byteLength;
-                            updateUI(offset, selectedFile.size);
-                            if (offset < selectedFile.size) sendNext();
-                        };
-                        reader.readAsArrayBuffer(slice);
-                    };
-                    sendNext();
-                }
-            });
-
-            let meta = null, chunks = [], rec = 0;
-            peer.on('data', d => {
-                try { 
-                    const parsed = JSON.parse(d);
-                    if(parsed.n) meta = parsed;
-                } catch(e) { 
-                    chunks.push(d); 
-                    rec += d.byteLength;
-                    updateUI(rec, meta.s);
-                    if(rec >= meta.s) {
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(new Blob(chunks));
-                        a.download = meta.n;
-                        a.click();
-                        alert("Odebrano plik!");
-                        location.reload();
-                    }
-                }
-            });
-
-            peer.on('error', err => console.error("Błąd P2P:", err));
-        }
-
-        function updateUI(d, t) {
-            const pc = Math.min(100, Math.round((d/t)*100));
-            document.getElementById('progress-fill').style.width = pc+'%';
-            document.getElementById('transfer-stats').innerText = `${(d/1024/1024).toFixed(1)} / ${(t/1024/1024).toFixed(1)} MB (${pc}%)`;
-        }
     </script>
 </body>
 </html>
