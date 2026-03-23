@@ -2,56 +2,75 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FileBridge P2P</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
     <style>
-        .premium-gold { border-color: #ffd700 !important; color: #ffd700 !important; box-shadow: 0 0 20px #ffd700 !important; }
-        .file-requests-panel { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.1); }
-        .file-item { background: #1a1a2e; padding: 8px; border-radius: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-        .btn-ok { background: #28a745; border:none; color:white; padding: 4px 8px; border-radius:3px; cursor:pointer; }
-        .btn-no { background: #dc3545; border:none; color:white; padding: 4px 8px; border-radius:3px; cursor:pointer; }
+        /* Skalowanie interfejsu */
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; background: #0f0c29; color: white; }
+        .app-container { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; }
+        
+        .main-hub { flex-grow: 1; position: relative; display: flex; justify-content: center; align-items: center; min-height: 300px; }
+        .bottom-panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; height: 200px; }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; overflow-y: auto; }
+        
+        /* Stylistyka */
+        .user-node { position: absolute; text-align: center; transition: all 0.5s ease; cursor: pointer; }
+        .avatar { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #4facfe; display: flex; align-items: center; justify-content: center; background: #1a1a2e; font-weight: bold; margin-bottom: 5px; }
+        .premium-gold { border-color: #ffd700 !important; color: #ffd700 !important; box-shadow: 0 0 15px #ffd700; }
+        
+        input { width: 100%; padding: 6px; margin: 4px 0; background: rgba(0,0,0,0.3); border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 8px; cursor: pointer; border-radius: 4px; border: none; background: #4facfe; color: white; font-weight: bold; margin-top: 5px; }
+        button.secondary { background: #3d3d5c; }
+        
+        .progress-bar { width: 100%; height: 8px; background: #222; border-radius: 4px; margin: 10px 0; overflow: hidden; }
+        #progress-fill { height: 100%; width: 0%; background: linear-gradient(to right, #4facfe, #00f2fe); transition: width 0.2s; }
+        .file-item { background: rgba(255,255,255,0.1); padding: 6px; margin-top: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
     </style>
 </head>
 <body>
-    <div id="auth-screen" class="glass-panel">
-        <h1>FileBridge</h1>
-        <input type="text" id="username" placeholder="Login">
-        <input type="password" id="password" placeholder="Hasło">
-        <button onclick="auth('login')">Zaloguj</button>
-        <button onclick="auth('register')" class="secondary">Rejestracja</button>
+    <div id="auth-screen" style="display:flex; justify-content:center; align-items:center; height:100vh;">
+        <div class="glass-panel" style="width:300px;">
+            <h2 style="text-align:center">FileBridge</h2>
+            <input type="text" id="username" placeholder="Login">
+            <input type="password" id="password" placeholder="Hasło">
+            <button onclick="auth('login')">Zaloguj</button>
+            <button onclick="auth('register')" class="secondary">Rejestracja</button>
+        </div>
     </div>
 
     <div id="main-app" class="app-container" style="display: none;">
-        <div class="glass-panel topbar">
-            <div id="my-name">Witaj</div>
-            <div id="p2p-status">● Offline</div>
+        <div class="glass-panel" style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; padding: 8px 20px;">
+            <div id="my-name">Witaj...</div>
+            <div id="p2p-status" style="color:#00ff00">● Online (Server)</div>
         </div>
 
         <div class="main-hub" id="hub">
-            <div id="my-avatar" class="user-node center"><div class="avatar">TY</div></div>
+            <div id="my-avatar" class="user-node"><div class="avatar">TY</div></div>
         </div>
 
         <div class="bottom-panels">
             <div class="glass-panel">
-                <h3>Znajomi/Kody</h3>
-                <div id="notif-list" style="margin-bottom:10px"></div>
-                <input type="text" id="friend-name" placeholder="Szukaj znajomego...">
+                <h4 style="margin:0 0 8px 0">Znajomi & Kody</h4>
+                <div id="notif-list" style="max-height: 50px; overflow-y: auto; font-size: 12px; color: #4facfe;"></div>
+                <input type="text" id="friend-name" placeholder="Nick znajomego...">
                 <button onclick="socket.emit('add-friend', document.getElementById('friend-name').value)">Dodaj</button>
-                <input type="text" id="premium-code" placeholder="Kod premium..." style="margin-top:10px">
-                <button onclick="socket.emit('redeem-code', document.getElementById('premium-code').value)" class="secondary">Użyj kodu</button>
+                <input type="text" id="premium-code" placeholder="Kod premium...">
+                <button onclick="socket.emit('redeem-code', document.getElementById('premium-code').value)" class="secondary">Aktywuj</button>
             </div>
 
             <div class="glass-panel">
-                <h3>Akceptacja Plików</h3>
-                <div id="file-requests-list">Brak próśb</div>
+                <h4 style="margin:0 0 8px 0">Prośby o Pliki</h4>
+                <div id="file-requests-list" style="font-size: 12px; color: #888;">Brak próśb</div>
             </div>
 
             <div class="glass-panel">
-                <h3>Transfer</h3>
-                <div id="file-info">Upuść plik na awatar znajomego</div>
-                <div class="progress-bar-container"><div id="progress-fill" class="progress-bar-fill"></div></div>
-                <div id="transfer-stats">0/0 MB</div>
+                <h4 style="margin:0 0 8px 0">Transfer</h4>
+                <div id="file-info" style="font-size: 12px;">Upuść plik na awatar znajomego</div>
+                <div class="progress-bar"><div id="progress-fill"></div></div>
+                <div id="transfer-stats" style="font-size: 12px; text-align: center;">0/0 MB</div>
             </div>
         </div>
     </div>
@@ -59,9 +78,16 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let p, myUsername, selectedFile;
-        // Serwery STUN od Google pozwalają łączyć się przez internet
-        const peerConfig = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] } };
+        let p = null, myUsername, selectedFile;
+
+        // Kluczowe dla przesyłania przez Internet (STUN)
+        const peerCfg = { 
+            config: { iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]} 
+        };
 
         function auth(type) {
             socket.emit('auth', { type, username: document.getElementById('username').value, password: document.getElementById('password').value });
@@ -70,8 +96,8 @@
         socket.on('auth-success', u => {
             myUsername = u.username;
             document.getElementById('auth-screen').style.display='none';
-            document.getElementById('main-app').style.display='grid';
-            document.getElementById('my-name').innerText = u.username;
+            document.getElementById('main-app').style.display='flex';
+            document.getElementById('my-name').innerText = "Zalogowano: " + u.username;
             if(u.premium === 'gold') document.querySelector('#my-avatar .avatar').classList.add('premium-gold');
         });
 
@@ -83,23 +109,30 @@
             
             list.forEach((f, i) => {
                 if(f.status === 'pending' && f.sender !== myUsername) {
-                    nList.innerHTML += `<div>${f.username} <button class="btn-ok" onclick="socket.emit('accept-friend','${f.username}')">Akceptuj</button></div>`;
+                    nList.innerHTML += `<div style="display:flex; justify-content:space-between"><span>${f.username}</span><button style="width:auto; padding:2px 5px" onclick="socket.emit('accept-friend','${f.username}')">OK</button></div>`;
                 } else if(f.status === 'accepted' && f.isOnline) {
                     const node = document.createElement('div');
                     node.className = 'user-node remote-user';
-                    node.style.transform = `rotate(${i*60}deg) translate(180px) rotate(-${i*60}deg)`;
-                    node.innerHTML = `<div class="avatar ${f.premium === 'gold' ? 'premium-gold' : ''}" onclick="prepareFile('${f.username}')">${f.username[0]}</div><span>${f.username}</span>`;
+                    const angle = i * (360 / Math.max(list.length, 1));
+                    node.style.transform = `rotate(${angle}deg) translate(140px) rotate(-${angle}deg)`;
+                    node.innerHTML = `
+                        <div class="avatar ${f.premium === 'gold' ? 'premium-gold' : ''}" onclick="sendFileTo('${f.username}')">${f.username[0].toUpperCase()}</div>
+                        <div style="font-size:10px">${f.username}</div>`;
                     hub.appendChild(node);
                 }
             });
         });
 
-        // PRZESYŁANIE
+        // Obsługa plików
         window.ondragover = e => e.preventDefault();
-        window.ondrop = e => { e.preventDefault(); selectedFile = e.dataTransfer.files[0]; document.getElementById('file-info').innerText = "Wybrano: " + selectedFile.name; };
+        window.ondrop = e => { 
+            e.preventDefault(); 
+            selectedFile = e.dataTransfer.files[0]; 
+            document.getElementById('file-info').innerText = "Gotowy: " + selectedFile.name; 
+        };
 
-        function prepareFile(target) {
-            if(!selectedFile) return alert("Najpierw upuść plik!");
+        function sendFileTo(target) {
+            if(!selectedFile) return alert("Upuść plik gdziekolwiek na stronę najpierw!");
             socket.emit('file-offer', { to: target, fileName: selectedFile.name, fileSize: selectedFile.size });
             document.getElementById('file-info').innerText = "Czekam na akceptację...";
         }
@@ -109,23 +142,24 @@
             if(list.innerText.includes("Brak")) list.innerHTML = "";
             const div = document.createElement('div');
             div.className = 'file-item';
-            div.innerHTML = `<span>${data.from}: ${data.fileName}</span><div><button class="btn-ok" onclick="acceptFile('${data.from}')">TAK</button></div>`;
+            div.innerHTML = `<span>${data.from} wysyła plik</span><button style="width:auto" onclick="acceptF('${data.from}')">TAK</button>`;
             list.appendChild(div);
         });
 
-        function acceptFile(from) {
+        function acceptF(from) {
             socket.emit('file-accepted', { to: from });
             event.target.closest('.file-item').remove();
         }
 
         socket.on('start-webrtc', data => {
-            p = new SimplePeer({ initiator: true, trickle: false, ...peerConfig });
+            if(p) p.destroy();
+            p = new SimplePeer({ initiator: true, trickle: false, ...peerCfg });
             setupPeer(p, data.from);
         });
 
         socket.on('signal', data => {
             if(!p) {
-                p = new SimplePeer({ initiator: false, trickle: false, ...peerConfig });
+                p = new SimplePeer({ initiator: false, trickle: false, ...peerCfg });
                 setupPeer(p, data.from);
             }
             p.signal(data.signal);
@@ -136,15 +170,20 @@
             peer.on('connect', () => {
                 if(selectedFile) {
                     peer.send(JSON.stringify({ n: selectedFile.name, s: selectedFile.size }));
-                    const reader = new FileReader();
                     let offset = 0;
-                    reader.onload = e => {
-                        peer.send(e.target.result);
-                        offset += e.target.result.byteLength;
-                        updateUI(offset, selectedFile.size);
-                        if (offset < selectedFile.size) reader.readAsArrayBuffer(selectedFile.slice(offset, offset + 16384));
+                    const chunkSize = 16384;
+                    const read = () => {
+                        const reader = new FileReader();
+                        const slice = selectedFile.slice(offset, offset + chunkSize);
+                        reader.onload = e => {
+                            peer.send(e.target.result);
+                            offset += e.target.result.byteLength;
+                            updateUI(offset, selectedFile.size);
+                            if (offset < selectedFile.size) read();
+                        };
+                        reader.readAsArrayBuffer(slice);
                     };
-                    reader.readAsArrayBuffer(selectedFile.slice(0, 16384));
+                    read();
                 }
             });
             let meta = null, chunks = [], rec = 0;
@@ -154,17 +193,20 @@
                     chunks.push(d); rec += d.byteLength;
                     updateUI(rec, meta.s);
                     if(rec >= meta.s) {
-                        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks));
-                        a.download = meta.n; a.click(); location.reload();
+                        const blob = new Blob(chunks);
+                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                        a.download = meta.n; a.click();
+                        alert("Pobieranie zakończone!");
+                        location.reload();
                     }
                 }
             });
         }
 
         function updateUI(d, t) {
-            const pc = Math.round((d/t)*100);
+            const pc = Math.min(100, Math.round((d/t)*100));
             document.getElementById('progress-fill').style.width = pc+'%';
-            document.getElementById('transfer-stats').innerText = `${(d/1024/1024).toFixed(1)} / ${(t/1024/1024).toFixed(1)} MB`;
+            document.getElementById('transfer-stats').innerText = `${(d/1024/1024).toFixed(1)} / ${(t/1024/1024).toFixed(1)} MB (${pc}%)`;
         }
     </script>
 </body>
