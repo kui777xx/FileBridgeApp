@@ -114,33 +114,54 @@
         }
 
         socket.on('friend-list', list => {
-            const hub = document.getElementById('hub');
-            const notifList = document.getElementById('notif-list');
-            const badge = document.getElementById('badge');
-            document.querySelectorAll('.remote-user').forEach(e => e.remove());
-            notifList.innerHTML = "";
-            let pCount = 0;
+    console.log("📥 Otrzymano nową listę znajomych:", list); // Sprawdź to w konsoli przeglądarki (F12)
+    
+    const hub = document.getElementById('hub');
+    const notifList = document.getElementById('notif-list');
+    const badge = document.getElementById('badge');
+    
+    // Czyścimy stare awatary (zostawiamy tylko środek "TY")
+    document.querySelectorAll('.remote-user').forEach(e => e.remove());
+    notifList.innerHTML = "";
+    let pCount = 0;
 
-            list.forEach((f, i) => {
-                if(f.status === 'pending' && f.sender !== myUsername) {
-                    pCount++;
-                    notifList.innerHTML += `<div class="notif-item"><span>${f.username}</span><button class="btn-mini" onclick="socket.emit('accept-friend','${f.username}')">OK</button></div>`;
-                } else if(f.status === 'accepted' && f.isOnline) {
-                    const node = document.createElement('div');
-                    node.className = 'user-node remote-user';
-                    const angle = i * 60;
-                    node.style.transform = `rotate(${angle}deg) translate(200px) rotate(-${angle}deg)`;
-                    
-                    // Nakładamy styl premium znajomego
-                    const premiumClass = f.premium === 'gold' ? 'premium-gold' : '';
-                    node.innerHTML = `<div class="avatar ${premiumClass}" onclick="sendTo('${f.username}')">${f.username[0].toUpperCase()}</div><div style="font-size:11px">${f.username}</div>`;
-                    hub.appendChild(node);
-                }
-            });
-            badge.innerText = pCount; badge.style.display = pCount > 0 ? 'inline' : 'none';
-            if(pCount === 0) notifList.innerHTML = "Brak zaproszeń";
-        });
+    list.forEach((f, i) => {
+        // 1. Obsługa zaproszeń (Pending)
+        if(f.status === 'pending') {
+            if(f.sender !== myUsername) {
+                pCount++;
+                notifList.innerHTML += `
+                    <div class="notif-item">
+                        <span>${f.username}</span>
+                        <button class="btn-mini" onclick="socket.emit('accept-friend','${f.username}')">OK</button>
+                    </div>`;
+            } else {
+                notifList.innerHTML += `<div class="notif-item"><span>Wysłano do: ${f.username}...</span></div>`;
+            }
+        } 
+        // 2. Obsługa zaakceptowanych znajomych (Accepted)
+        else if(f.status === 'accepted' && f.isOnline) {
+            const node = document.createElement('div');
+            node.className = 'user-node remote-user';
+            const angle = (i * (360 / Math.max(list.length, 1))); // Rozmieszczenie na kole
+            node.style.transform = `rotate(${angle}deg) translate(180px) rotate(-${angle}deg)`;
+            
+            const premiumClass = f.premium === 'gold' ? 'premium-gold' : '';
+            node.innerHTML = `
+                <div class="avatar ${premiumClass}" onclick="sendTo('${f.username}')">
+                    ${f.username[0].toUpperCase()}
+                </div>
+                <div style="font-size:11px; margin-top:5px;">${f.username}</div>`;
+            hub.appendChild(node);
+        }
+    });
 
+    if(badge) {
+        badge.innerText = pCount;
+        badge.style.display = pCount > 0 ? 'inline-block' : 'none';
+    }
+    if(notifList.innerHTML === "") notifList.innerHTML = "Brak aktywności";
+});
         // --- P2P LOGIKA (Bez zmian) ---
         window.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-zone').style.display='flex'; });
         window.addEventListener('drop', e => {
