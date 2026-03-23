@@ -17,24 +17,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 let onlineUsers = {}; 
 
 io.on('connection', (socket) => {
-    
     socket.on('auth', async (data) => {
         const { type, username, password } = data;
         usersDB.findOne({ username }, async (err, user) => {
             if (type === 'register') {
                 if (user) return socket.emit('auth-error', 'Użytkownik już istnieje');
                 const hashedPassword = await bcrypt.hash(password, 10);
-                usersDB.insert({ username, password: hashedPassword, premium: 'default' }, (err, newUser) => {
-                    loginSuccess(newUser);
-                });
+                usersDB.insert({ username, password: hashedPassword, premium: 'default' }, (err, newUser) => loginSuccess(newUser));
             } else {
-                if (!user || !(await bcrypt.compare(password, user.password))) {
-                    return socket.emit('auth-error', 'Błędne dane');
-                }
+                if (!user || !(await bcrypt.compare(password, user.password))) return socket.emit('auth-error', 'Błędne dane');
                 loginSuccess(user);
             }
         });
-
         function loginSuccess(user) {
             onlineUsers[socket.id] = { username: user.username, id: user._id, premium: user.premium };
             socket.emit('auth-success', { username: user.username, id: user._id, premium: user.premium });
@@ -42,26 +36,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('redeem-code', (code) => {
+    socket.on('add-friend', (name) => {
         const me = onlineUsers[socket.id];
-        let newStatus = code === 'GOLD-COLOR' ? 'gold' : (code === 'RESET' ? 'default' : null);
-        if(newStatus && me) {
-            usersDB.update({ _id: me.id }, { $set: { premium: newStatus } }, {}, () => {
-                onlineUsers[socket.id].premium = newStatus;
-                socket.emit('premium-update', newStatus);
-                broadcastUpdate();
-            });
-        }
-    });
-
-    socket.on('add-friend', (targetName) => {
-        const me = onlineUsers[socket.id];
-        usersDB.findOne({ username: targetName }, (err, target) => {
+        usersDB.findOne({ username: name }, (err, target) => {
             if (!target || target.username === me.username) return;
             friendsDB.findOne({ $or: [{ user1: me.id, user2: target._id }, { user1: target._id, user2: me.id }] }, (err, exists) => {
-                if (!exists) {
-                    friendsDB.insert({ user1: me.id, user2: target._id, status: 'pending', sender: me.username }, () => broadcastUpdate());
-                }
+                if (!exists) friendsDB.insert({ user1: me.id, user2: target._id, status: 'pending', sender: me.username }, () => broadcastUpdate());
             });
         });
     });
@@ -73,20 +53,26 @@ io.on('connection', (socket) => {
         });
     });
 
-    // HANDSHAKE PLIKÓW
-    socket.on('file-offer', (data) => {
-        const target = Object.keys(onlineUsers).find(id => onlineUsers[id].username === data.to);
-        if (target) io.to(target).emit('file-request', { from: onlineUsers[socket.id].username, fileName: data.fileName, fileSize: data.fileSize });
+    socket.on('redeem-code', (code) => {
+        const me = onlineUsers[socket.id];
+        let status = (code === 'GOLD-COLOR') ? 'gold' : (code === 'RESET' ? 'default' : null);
+        if(status && me) usersDB.update({ _id: me.id }, { $set: { premium: status } }, {}, () => {
+            onlineUsers[socket.id].premium = status;
+            broadcastUpdate();
+        });
     });
 
-    socket.on('file-accepted', (data) => {
-        const target = Object.keys(onlineUsers).find(id => onlineUsers[id].username === data.to);
-        if (target) io.to(target).emit('start-webrtc', { from: onlineUsers[socket.id].username });
+    socket.on('file-offer', d => {
+        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
+        if(t) io.to(t).emit('file-request', { from: onlineUsers[socket.id].username, fileName: d.fileName });
     });
-
-    socket.on('signal', (data) => {
-        const target = Object.keys(onlineUsers).find(id => onlineUsers[id].username === data.to);
-        if (target) io.to(target).emit('signal', { signal: data.signal, from: onlineUsers[socket.id].username });
+    socket.on('file-accepted', d => {
+        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
+        if(t) io.to(t).emit('start-webrtc', { from: onlineUsers[socket.id].username });
+    });
+    socket.on('signal', d => {
+        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
+        if(t) io.to(t).emit('signal', { signal: d.signal, from: onlineUsers[socket.id].username });
     });
 
     function broadcastUpdate() {
@@ -104,9 +90,7 @@ io.on('connection', (socket) => {
             });
         });
     }
-
     socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUpdate(); });
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`🚀 Serwer na porcie ${PORT}`));
+server.listen(process.env.PORT || 10000);
