@@ -107,21 +107,40 @@ io.on('connection', (socket) => {
     });
 
     // Aktualizacja listy znajomych dla wszystkich online
-    function broadcastUpdate() {
-        Object.keys(onlineUsers).forEach(socketId => {
-            const userId = onlineUsers[socketId].id;
-            friendsDB.find({ $or: [{ user1: userId }, { user2: userId }] }, (err, relations) => {
-                const friendIds = relations.map(r => r.user1 === userId ? r.user2 : r.user1);
-                usersDB.find({ _id: { $in: friendIds } }, (err, friends) => {
-                    const list = friends.map(f => ({
+function broadcastUpdate() {
+    console.log("📢 Rozpoczynam aktualizację list znajomych dla wszystkich online...");
+    
+    Object.keys(onlineUsers).forEach(socketId => {
+        const currentUser = onlineUsers[socketId];
+        const userId = currentUser.id;
+
+        // Szukamy wszystkich relacji (zaakceptowanych i oczekujących)
+        friendsDB.find({ $or: [{ user1: userId }, { user2: userId }] }, (err, relations) => {
+            if (err) return console.error("Błąd bazy friends:", err);
+
+            const friendIds = relations.map(r => r.user1 === userId ? r.user2 : r.user1);
+            
+            usersDB.find({ _id: { $in: friendIds } }, (err, friends) => {
+                const list = friends.map(f => {
+                    const rel = relations.find(r => r.user1 === f._id || r.user2 === f._id);
+                    // Sprawdzamy czy znajomy jest teraz online
+                    const friendOnline = Object.values(onlineUsers).some(u => u.id === f._id);
+                    
+                    return {
                         username: f.username,
-                        isOnline: Object.values(onlineUsers).some(u => u.id === f._id)
-                    }));
-                    io.to(socketId).emit('friend-list', list);
+                        status: rel.status,
+                        sender: rel.sender,
+                        isOnline: friendOnline,
+                        premium: f.premium || 'default'
+                    };
                 });
+
+                console.log(`📤 Wysyłam listę (${list.length} znajomych) do: ${currentUser.username}`);
+                io.to(socketId).emit('friend-list', list);
             });
         });
-    }
+    });
+}
 
     socket.on('disconnect', () => {
         if(onlineUsers[socket.id]) {
