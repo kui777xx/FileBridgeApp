@@ -4,15 +4,46 @@ const { Server } = require('socket.io');
 const Datastore = require('@seald-io/nedb');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Konfiguracja zapisu plików
+const upload = multer({ dest: 'uploads/' });
+if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+
 const usersDB = new Datastore({ filename: path.join(__dirname, 'users.db'), autoload: true });
 const friendsDB = new Datastore({ filename: path.join(__dirname, 'friends.db'), autoload: true });
+const filesDB = new Datastore({ filename: path.join(__dirname, 'files.db'), autoload: true });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Endpoint do wysyłania plików
+app.post('/upload', upload.single('file'), (req, res) => {
+    const { owner, ownerId } = req.body;
+    const fileData = {
+        name: req.file.originalname,
+        path: req.file.path,
+        size: req.file.size,
+        owner: owner,
+        ownerId: ownerId,
+        date: new Date()
+    };
+    filesDB.insert(fileData, (err, newFile) => {
+        res.json({ success: true });
+        broadcastUpdate();
+    });
+});
+
+// Endpoint do pobierania
+app.get('/download/:id', (req, res) => {
+    filesDB.findOne({ _id: req.params.id }, (err, file) => {
+        if (file) res.download(file.path, file.name);
+    });
+});
 
 let onlineUsers = {}; 
 
@@ -21,11 +52,11 @@ io.on('connection', (socket) => {
         const { type, username, password } = data;
         usersDB.findOne({ username }, async (err, user) => {
             if (type === 'register') {
-                if (user) return socket.emit('auth-error', 'Użytkownik już istnieje');
+                if (user) return socket.emit('auth-error', 'Użytkownik istnieje');
                 const hashedPassword = await bcrypt.hash(password, 10);
-                usersDB.insert({ username, password: hashedPassword, premium: 'default' }, (err, newUser) => loginSuccess(newUser));
+                usersDB.insert({ username, password: hashedPassword, premium: 'default' }, (err, n) => loginSuccess(n));
             } else {
-                if (!user || !(await bcrypt.compare(password, user.password))) return socket.emit('auth-error', 'Błędne dane');
+                if (!user || !(await bcrypt.compare(password, user.password))) return socket.emit('auth-error', 'Błąd logowania');
                 loginSuccess(user);
             }
         });
@@ -38,64 +69,26 @@ io.on('connection', (socket) => {
 
     socket.on('add-friend', (name) => {
         const me = onlineUsers[socket.id];
-        if(!me) return;
         usersDB.findOne({ username: name }, (err, target) => {
-            if (!target || target.username === me.username) return;
-            friendsDB.findOne({ $or: [{ user1: me.id, user2: target._id }, { user1: target._id, user2: me.id }] }, (err, exists) => {
-                if (!exists) friendsDB.insert({ user1: me.id, user2: target._id, status: 'pending', sender: me.username }, () => broadcastUpdate());
-            });
+            if (target && target.username !== me.username) {
+                friendsDB.insert({ user1: me.id, user2: target._id, status: 'accepted' }, () => broadcastUpdate());
+            }
         });
-    });
-
-    socket.on('accept-friend', (name) => {
-        const me = onlineUsers[socket.id];
-        if(!me) return;
-        usersDB.findOne({ username: name }, (err, f) => {
-            if(f) friendsDB.update({ $or: [{ user1: me.id, user2: f._id }, { user1: f._id, user2: me.id }] }, { $set: { status: 'accepted' } }, {}, () => broadcastUpdate());
-        });
-    });
-
-    socket.on('redeem-code', (code) => {
-        const me = onlineUsers[socket.id];
-        let status = (code === 'GOLD-COLOR') ? 'gold' : (code === 'RESET' ? 'default' : null);
-        if(status && me) usersDB.update({ _id: me.id }, { $set: { premium: status } }, {}, () => {
-            onlineUsers[socket.id].premium = status;
-            broadcastUpdate();
-        });
-    });
-
-    socket.on('file-offer', d => {
-        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
-        if(t) io.to(t).emit('file-request', { from: onlineUsers[socket.id].username, fileName: d.fileName });
-    });
-
-    socket.on('file-accepted', d => {
-        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
-        if(t) io.to(t).emit('start-webrtc', { from: onlineUsers[socket.id].username });
-    });
-
-    socket.on('signal', d => {
-        const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
-        if(t) io.to(t).emit('signal', { signal: d.signal, from: onlineUsers[socket.id].username });
     });
 
     function broadcastUpdate() {
         Object.keys(onlineUsers).forEach(sid => {
             const user = onlineUsers[sid];
-            if(!user) return;
             friendsDB.find({ $or: [{ user1: user.id }, { user2: user.id }] }, (err, rels) => {
                 const fIds = rels.map(r => r.user1 === user.id ? r.user2 : r.user1);
-                usersDB.find({ _id: { $in: fIds } }, (err, friends) => {
-                    const list = friends.map(f => {
-                        const r = rels.find(rel => rel.user1 === f._id || rel.user2 === f._id);
-                        return { username: f.username, status: r.status, sender: r.sender, isOnline: Object.values(onlineUsers).some(u => u.id === f._id), premium: f.premium };
-                    });
-                    io.to(sid).emit('friend-list', list);
+                // Pobierz pliki znajomych
+                filesDB.find({ ownerId: { $in: [...fIds, user.id] } }, (err, files) => {
+                    socket.emit('update-data', { files });
                 });
             });
         });
     }
-    socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUpdate(); });
+    socket.on('disconnect', () => { delete onlineUsers[socket.id]; });
 });
 
-server.listen(process.env.PORT || 10000, () => console.log("Serwer działa"));
+server.listen(process.env.PORT || 10000);
