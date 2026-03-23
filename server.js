@@ -38,6 +38,7 @@ io.on('connection', (socket) => {
 
     socket.on('add-friend', (name) => {
         const me = onlineUsers[socket.id];
+        if(!me) return;
         usersDB.findOne({ username: name }, (err, target) => {
             if (!target || target.username === me.username) return;
             friendsDB.findOne({ $or: [{ user1: me.id, user2: target._id }, { user1: target._id, user2: me.id }] }, (err, exists) => {
@@ -48,8 +49,9 @@ io.on('connection', (socket) => {
 
     socket.on('accept-friend', (name) => {
         const me = onlineUsers[socket.id];
+        if(!me) return;
         usersDB.findOne({ username: name }, (err, f) => {
-            friendsDB.update({ $or: [{ user1: me.id, user2: f._id }, { user1: f._id, user2: me.id }] }, { $set: { status: 'accepted' } }, {}, () => broadcastUpdate());
+            if(f) friendsDB.update({ $or: [{ user1: me.id, user2: f._id }, { user1: f._id, user2: me.id }] }, { $set: { status: 'accepted' } }, {}, () => broadcastUpdate());
         });
     });
 
@@ -66,10 +68,12 @@ io.on('connection', (socket) => {
         const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
         if(t) io.to(t).emit('file-request', { from: onlineUsers[socket.id].username, fileName: d.fileName });
     });
+
     socket.on('file-accepted', d => {
         const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
         if(t) io.to(t).emit('start-webrtc', { from: onlineUsers[socket.id].username });
     });
+
     socket.on('signal', d => {
         const t = Object.keys(onlineUsers).find(id => onlineUsers[id].username === d.to);
         if(t) io.to(t).emit('signal', { signal: d.signal, from: onlineUsers[socket.id].username });
@@ -77,9 +81,10 @@ io.on('connection', (socket) => {
 
     function broadcastUpdate() {
         Object.keys(onlineUsers).forEach(sid => {
-            const uid = onlineUsers[sid].id;
-            friendsDB.find({ $or: [{ user1: uid }, { user2: uid }] }, (err, rels) => {
-                const fIds = rels.map(r => r.user1 === uid ? r.user2 : r.user1);
+            const user = onlineUsers[sid];
+            if(!user) return;
+            friendsDB.find({ $or: [{ user1: user.id }, { user2: user.id }] }, (err, rels) => {
+                const fIds = rels.map(r => r.user1 === user.id ? r.user2 : r.user1);
                 usersDB.find({ _id: { $in: fIds } }, (err, friends) => {
                     const list = friends.map(f => {
                         const r = rels.find(rel => rel.user1 === f._id || rel.user2 === f._id);
@@ -93,4 +98,4 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUpdate(); });
 });
 
-server.listen(process.env.PORT || 10000);
+server.listen(process.env.PORT || 10000, () => console.log("Serwer działa"));
