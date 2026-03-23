@@ -81,13 +81,15 @@
         let p = null, myUsername, selectedFile;
 
         // Kluczowe dla przesyłania przez Internet (STUN)
-        const peerCfg = { 
-            config: { iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]} 
-        };
+const peerCfg = { 
+    config: { iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.services.mozilla.com' },
+        { urls: 'stun:stun.voipstunt.com' }
+    ]} 
+};
 
         function auth(type) {
             socket.emit('auth', { type, username: document.getElementById('username').value, password: document.getElementById('password').value });
